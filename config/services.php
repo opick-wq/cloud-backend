@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    // Firebase configuration (tambahkan ini)
+    'firebase' => [
+    'credentials_file' => storage_path('app/firebase/firebase_credentials.json'),
+    ],
+
 ];
