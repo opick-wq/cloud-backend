@@ -15,8 +15,44 @@ class FirebaseService
     {
         $projectId = env('FIREBASE_PROJECT_ID'); // isi di .env
         $this->baseUrl = "https://firestore.googleapis.com/v1/projects/{$projectId}/databases/(default)/documents";
-        $this->collection = 'products';
+        $this->collection = 'Users';
     }
+
+    public function findByEmail($email)
+    {
+    $all = $this->getAll();
+
+    if (!isset($all['documents'])) return null;
+
+    foreach ($all['documents'] as $doc) {
+        $fields = $doc['fields'];
+        if ($fields['email']['stringValue'] === $email) {
+            $id = basename($doc['name']);
+            return ['id' => $id, 'fields' => $fields];
+        }
+    }
+
+    return null;
+    }
+
+    public function findByUsername($username)
+    {
+        $all = $this->getAll();
+
+        if (!isset($all['documents'])) return null;
+
+        foreach ($all['documents'] as $doc) {
+            $fields = $doc['fields'];
+            if (isset($fields['username']) && $fields['username']['stringValue'] === $username) {
+                $id = basename($doc['name']);
+                return ['id' => $id, 'fields' => $fields];
+            }
+        }
+
+        return null;
+    }
+
+
 
     public function getAll()
     {

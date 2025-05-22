@@ -34,7 +34,9 @@ class ProductController extends Controller
             }
         }
 
-        return response()->json($data);
+        return response()->json([
+        'produk' => $data // $produk bisa berupa collection atau array
+        ], 200);
     }
 
     public function store(Request $request)
