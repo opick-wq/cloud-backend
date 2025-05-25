@@ -71,6 +71,7 @@ class FirebaseService
         return $response->json();
     }
 
+    
     public function get($id)
     {
         $url = "{$this->baseUrl}/{$this->collection}/{$id}";

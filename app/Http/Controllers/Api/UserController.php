@@ -9,6 +9,9 @@ use Illuminate\Support\Str;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache; // simpan OTP sementara
+use App\Mail\VerifikasiOtpMail;
 
 
 class UserController extends Controller
@@ -124,4 +127,63 @@ class UserController extends Controller
             return response()->json(['message' => 'Invalid token'], 401);
         }
     }
+
+
+
+    public function forgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        // Cek user berdasarkan email
+        $user = $this->firebase->findByEmail($request->email);
+
+        if (!$user) {
+            return response()->json(['message' => 'Email not found'], 404);
+        }
+
+        // Generate OTP
+        $otp = rand(100000, 999999);
+        $email = $request->email;
+
+        // Simpan OTP ke Cache untuk 10 menit
+        Cache::put("otp_{$email}", $otp, now()->addMinutes(10));
+
+        // Kirim email OTP
+        Mail::to($email)->send(new VerifikasiOtpMail($otp));
+
+        return response()->json(['message' => 'Verification code sent to email']);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp' => 'required|digits:6',
+            'new_password' => 'required|string|min:8|confirmed'
+        ]);
+
+        $cachedOtp = Cache::get("otp_{$request->email}");
+
+        if (!$cachedOtp || $cachedOtp != $request->otp) {
+            return response()->json(['message' => 'Invalid or expired OTP'], 400);
+        }
+
+        $user = $this->firebase->findByEmail($request->email);
+        if (!$user) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+
+        // Update password di Firestore
+        $this->firebase->update($user['id'], [
+            'password' => bcrypt($request->new_password)
+        ]);
+
+        // Hapus OTP dari cache
+        Cache::forget("otp_{$request->email}");
+
+        return response()->json(['message' => 'Password has been reset successfully']);
+    }
+
 }
