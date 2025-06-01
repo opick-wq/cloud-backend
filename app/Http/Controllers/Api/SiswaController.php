@@ -630,7 +630,7 @@ class SiswaController extends Controller
             return response()->json(['message' => 'Data validation passed, but Firebase service not configured.'], 500);
         }
 
-        return response()->json(['message' => 'Data siswa berhasil diperbarui']);
+        return response()->json(['message' => 'Data siswa berhasil diperbarui silahkan kembali ke halaman dashboard']);
     }
 
     public function destroy($id)

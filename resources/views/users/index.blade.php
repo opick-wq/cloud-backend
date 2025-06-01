@@ -42,6 +42,7 @@
                         <td>
                             <a href="{{ route('users.show', $id) }}" class="btn btn-sm btn-info">Detail</a>
                             <a href="{{ route('users.edit', $id) }}" class="btn btn-sm btn-warning">Edit</a>
+                            <a href="{{ route('api.siswa.edit', $id) }}" class="btn btn-sm btn-secondary">Lihat Detail Siswa</a>
                             <form action="{{ route('users.destroy', $id) }}" method="POST" class="d-inline">
                                 @csrf
                                 @method('DELETE')
