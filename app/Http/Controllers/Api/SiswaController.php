@@ -690,5 +690,39 @@ private function formatChatData($doc)
     ];
     }
 
-    
+    public function updateProfile(Request $request)
+{
+    $authUser = $this->getAuthUser($request);
+
+    if (!$authUser || !isset($authUser->sub)) {
+        return response()->json(['message' => 'Unauthorized or invalid token.'], 401);
+    }
+
+    $id = $authUser->sub; // Gunakan UID dari token
+
+    if (!isset($this->firebase)) {
+        Log::error('Firebase service not initialized in SiswaController@updateProfile.');
+        return response()->json(['message' => 'Firebase service not configured.'], 500);
+    }
+
+    // Cek apakah dokumen siswa ada
+    $existingDoc = $this->firebase->get($id, 'Users');
+    if (!isset($existingDoc['name'])) {
+        return response()->json(['message' => 'Siswa tidak ditemukan'], 404);
+    }
+
+    // Validasi dan persiapkan data
+    $validatedData = $this->validateSiswaData($request, $id);
+    $preparedData = $this->prepareDataForFirebase($validatedData);
+
+    try {
+        $this->firebase->update($id, $preparedData, 'Users');
+    } catch (\Exception $e) {
+        Log::error("Gagal memperbarui data siswa: " . $e->getMessage());
+        return response()->json(['message' => 'Terjadi kesalahan saat memperbarui data.'], 500);
+    }
+
+    return response()->json(['message' => 'Data siswa berhasil diperbarui']);
+}
+
 }

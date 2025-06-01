@@ -52,6 +52,8 @@ Route::prefix('siswa')->group(function () {
 
 //untuk siswa melihat profil siswa 
 Route::get('/profile', [SiswaController::class, 'showProfile']);
+//untuk update siswa
+Route::put('/profile', [SiswaController::class, 'showProfile']);
 
 Route::get('/siswa/{id}/edit', [SiswaController::class, 'edit'])->name('api.siswa.edit');
 Route::prefix('detail-siswa')->group(function () {

@@ -11,7 +11,7 @@ use App\Http\Controllers\api\SiswaController;
 
 
 Route::get('/', function () {
-    return redirect()->route('auth.login');
+    return redirect()->route('login');
 });
 Route::get('/login', fn() => view('auth.login'))->name('login');
 Route::get('/register', fn() => view('auth.register'))->name('register');
