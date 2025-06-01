@@ -13,6 +13,9 @@ class FirebaseService
     protected $baseUrl;
     protected $collection;
     protected $aspirasi;
+    protected $jurnal;
+
+
 
     public function __construct()
     {
@@ -20,6 +23,7 @@ class FirebaseService
         $this->baseUrl = "https://firestore.googleapis.com/v1/projects/{$projectId}/databases/(default)/documents";
         $this->collection = 'Users';
         $this->aspirasi = 'aspirasi';
+        $this->jurnal = 'student_cases';
     }
 
     public function findByEmail($email)
@@ -72,6 +76,12 @@ class FirebaseService
         $response = Http::get($url);
         return $response->json();
     }
+    public function getAllJurnal()
+    {
+        $url = "{$this->baseUrl}/{$this->jurnal}";
+        $response = Http::get($url);
+        return $response->json();
+    }
 
     public function create(array $data)
     {
@@ -83,12 +93,48 @@ class FirebaseService
         return $response->json();
     }
 
+    public function createjurnal(array $data)
+    {
+        $url = "{$this->baseUrl}/{$this->jurnal}";
+        $body = [
+            'fields' => $this->formatData($data)
+        ];
+        $response = Http::post($url, $body);
+        return $response->json();
+    }
+
+    public function createDocumentWithSpecificId(string $aspirasi, array $data, string $documentId)
+{
+    // $this->baseUrl should be like "https://firestore.googleapis.com/v1/projects/YOUR_PROJECT_ID/databases/(default)/documents"
+    $url = "{$this->baseUrl}/{$aspirasi}?documentId={$documentId}";
+    $body = [
+        'fields' => $this->formatData($data) // Assuming formatData correctly prepares Firestore field types
+    ];
+    // Important: When using POST with documentId, Firestore creates the document.
+    // If the document already exists, this will result in an error (ALREADY_EXISTS).
+    $response = Http::post($url, $body);
+    return $response->json();
+}
+
     public function get($id)
     {
         $url = "{$this->baseUrl}/{$this->collection}/{$id}";
         $response = Http::get($url);
         return $response->json();
     }
+    
+    public function getJurnal($id)
+{
+    $url = "{$this->baseUrl}/{$this->jurnal}/{$id}";
+    $response = Http::get($url);
+
+    if ($response->successful()) {
+        return $response->json();
+    }
+
+    // Jika error, kembalikan null atau throw exception
+    return null;
+}
 
     public function update($id, array $data)
     {
@@ -98,9 +144,22 @@ class FirebaseService
         return $response->json();
     }
 
+    public function updateJurnal($id, array $data)
+    {
+        $url = "{$this->baseUrl}/{$this->jurnal}/{$id}?updateMask.fieldPaths=" . implode("&updateMask.fieldPaths=", array_keys($data));
+        $body = ['fields' => $this->formatData($data)];
+        $response = Http::patch($url, $body);
+        return $response->json();
+    }
+
     public function delete($id)
     {
         $url = "{$this->baseUrl}/{$this->collection}/{$id}";
+        return Http::delete($url);
+    }
+    public function deleteJurnal($id)
+    {
+        $url = "{$this->baseUrl}/{$this->jurnal}/{$id}";
         return Http::delete($url);
     }
 
@@ -193,11 +252,16 @@ public function getAllAspirations()
  */
 public function getAspirationsByUserId($id)
 {
-  $url = "{$this->baseUrl}/{$this->collection}/{$id}";
+  $url = "{$this->baseUrl}/{$this->aspirasi}/{$id}";
         $response = Http::get($url);
         return $response->json();
 }
 
+public function deleteAspiration($id)
+    {
+        $url = "{$this->baseUrl}/{$this->aspirasi}/{$id}";
+        return Http::delete($url);
+    }
 // Pastikan Anda memiliki helper seperti prepareFirestoreData jika dibutuhkan
 // private function prepareFirestoreData(array $data) { ... }
 // Dan metode generik seperti createDocumentInCollection atau getAllDocumentsFromCollection jika ada

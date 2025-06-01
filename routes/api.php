@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\SiswaController;
 use App\Http\Controllers\Api\DetailSiswaController;
 use App\Http\Controllers\Api\AspirationController;
+use App\Http\Controllers\Api\KasusSiswaController;
 
 
 //admin routes
@@ -14,6 +15,8 @@ Route::post('/admin/login', [UserController::class, 'adminLogin']);
 Route::post('/aspirations', [AspirationController::class, 'store']);
 //aspirasi buat table guru_bk
 Route::get('/aspirations', [AspirationController::class, 'index']);
+Route::get('/aspirations/{id}', [AspirationController::class, 'show']);
+Route::delete('/aspirations/{id}', [AspirationController::class, 'destroy']);
 
 
 //users  routes
@@ -68,4 +71,11 @@ Route::prefix('detail-siswa')->group(function () {
 //tampilan semua guru bk untu chat guru bk di halaman siswa
  Route::get('/chatguru', [SiswaController::class, 'chatguru']);
 
- //aspirasi
+
+
+ //jurnal student halaman guru_bk dan siswa
+Route::post('/student-cases', [KasusSiswaController::class, 'store']);
+Route::get('/student-cases', [KasusSiswaController::class, 'index']);
+Route::get('/student-cases/{id}', [KasusSiswaController::class, 'show']);
+Route::put('/student-cases/{id}', [KasusSiswaController::class, 'update']); // Atau PATCH
+Route::delete('/student-cases/{id}', [KasusSiswaController::class, 'destroy']);
