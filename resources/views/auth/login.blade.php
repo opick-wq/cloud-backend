@@ -32,7 +32,7 @@
 <script>
 $('#loginForm').submit(function(e) {
     e.preventDefault();
-    $.post('/api/login', $(this).serialize())
+    $.post('/api/admin/login', $(this).serialize())
         .done(function(res) {
             localStorage.setItem('token', res.token);
             window.location.href = '/dashboard'; // sesuaikan

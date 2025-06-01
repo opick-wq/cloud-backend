@@ -18,20 +18,16 @@
             <input type="text" name="username" class="form-control" required>
         </div>
         <div class="mb-3">
+            <label class="form-label">Nama Lengkap</label>
+            <input type="text" name="name" class="form-control" required>
+        </div>
+        <div class="mb-3">
             <label class="form-label">Email</label>
             <input type="email" name="email" class="form-control" required>
         </div>
         <div class="mb-3">
             <label class="form-label">Password</label>
             <input type="password" name="password" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Role</label>
-            <select name="role" class="form-control" required>
-                <option value="admin">Admin</option>
-                <option value="guru_bk">Guru BK</option>
-                <option value="siswa">Siswa</option>
-            </select>
         </div>
         <button class="btn btn-success w-100">Register</button>
         <div class="text-center mt-2">

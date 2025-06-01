@@ -25,12 +25,25 @@
 <script>
 $('#forgotForm').submit(function(e) {
     e.preventDefault();
-    $.post('/api/forgot-password', $(this).serialize())
+    const form = $(this);
+
+    $.post('/api/forgot-password', form.serialize())
         .done(function(res) {
             $('#alert').removeClass('d-none alert-danger').addClass('alert-success').text(res.message);
+
+            // Tunggu 1.5 detik, lalu redirect
+            setTimeout(() => {
+                window.location.href = '/reset-password';
+            }, 1500);
         })
         .fail(function(err) {
-            $('#alert').removeClass('d-none alert-success').addClass('alert-danger').text(err.responseJSON.message);
+            $('#alert').removeClass('d-none alert-success').addClass('alert-danger');
+
+            if (err.responseJSON && err.responseJSON.message) {
+                $('#alert').text(err.responseJSON.message);
+            } else {
+                $('#alert').text('Terjadi kesalahan saat mengirim permintaan.');
+            }
         });
 });
 </script>
