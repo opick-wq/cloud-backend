@@ -70,13 +70,13 @@ class UserController extends Controller
         $userData = $this->firebase->findByUsername($credentials['username']); 
 
         if (!$userData) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+            return response()->json(['message' => 'Akun tidak ditemukan'], 401);
         }
 
         $stored = $userData['fields'];
 
         if (!Hash::check($credentials['password'], $stored['password']['stringValue'])) {
-            return response()->json(['message' => 'Invalid credentials'], 401);
+            return response()->json(['message' => 'Username atau password salah'], 401);
         }
 
         $payload = [
