@@ -34,7 +34,7 @@ Route::delete('/users/{id}', [UserController::class, 'destroy']);
 
 Route::prefix('siswa')->group(function () {
 
-    //untuk melihat profil seluruh siswa
+    //halaman untuk guru bk untuk melihat profil seluruh siswa
     Route::get('/', [SiswaController::class, 'index']);
 
     //menambahkan profil siswa 
@@ -54,8 +54,6 @@ Route::prefix('siswa')->group(function () {
 Route::get('/profile', [SiswaController::class, 'showProfile']);
 
 Route::get('/siswa/{id}/edit', [SiswaController::class, 'edit'])->name('api.siswa.edit');
-    
-
 Route::prefix('detail-siswa')->group(function () {
     Route::get('/', [DetailSiswaController::class, 'index']);
     Route::post('/', [DetailSiswaController::class, 'store']);
