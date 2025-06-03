@@ -424,7 +424,7 @@ $(document).ready(function() {
                 let locationText = item.clockInAddress || '-';
                 if (!isNaN(clockInLat) && !isNaN(clockInLng)) {
                      // Koreksi URL Peta: menggunakan format standar dan template literal yang benar
-                    locationText = `${item.clockInAddress ? item.clockInAddress + '<br>' : ''}${clockInLat.toFixed(5)}, ${clockInLng.toFixed(5)} <a href="https://maps.google.com/maps?q=$3${clockInLat},${clockInLng}" target="_blank" class="ms-1 small text-nowrap">(Lihat Peta)</a>`;
+                    locationText = `${item.clockInAddress ? item.clockInAddress + '<br>' : ''}${clockInLat.toFixed(5)}, ${clockInLng.toFixed(5)} <a href="https://maps.google.com/?q=${clockInLat},${clockInLng}" target="_blank" class="ms-1 small text-nowrap">(Lihat Peta)</a>`;
                 }
 
                 const row = `
