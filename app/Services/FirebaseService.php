@@ -14,6 +14,7 @@ class FirebaseService
     protected $collection;
     protected $aspirasi;
     protected $jurnal;
+    protected $attendancesCollection;
 
 
 
@@ -24,6 +25,7 @@ class FirebaseService
         $this->collection = 'Users';
         $this->aspirasi = 'aspirasi';
         $this->jurnal = 'student_cases';
+        $this->attendancesCollection = 'attendances';
     }
 
     public function findByEmail($email)
@@ -268,6 +270,121 @@ public function deleteAspiration($id)
 // public function createDocumentInCollection(string $collectionName, array $data, ?string $documentId = null) { ... }
 // public function getAllDocumentsFromCollection(string $collectionName) { ... }
 
+public function queryCollection(string $collectionName, array $filters = [], array $orderBy = [])
+{
+    // Endpoint untuk :runQuery adalah pada level /documents, bukan /documents/collectionName
+    // Jika $this->baseUrl adalah "https://firestore.googleapis.com/v1/projects/YOUR_PROJECT_ID/databases/(default)/documents"
+    $url = "{$this->baseUrl}:runQuery";
+
+    $structuredQuery = [
+        'from' => [['collectionId' => $collectionName]]
+    ];
+
+    // Firestore REST API untuk query 'where' bisa lebih kompleks jika ada multiple filters (composite filters)
+    // Contoh ini menyederhanakan untuk satu filter atau beberapa filter AND sederhana.
+    // Untuk multiple AND filters, Anda akan menggunakan 'compositeFilter' dengan 'op': 'AND'
+    if (!empty($filters)) {
+        if (count($filters) == 1) { // Satu filter
+            $filter = $filters[0];
+            $structuredQuery['where'] = [
+                'fieldFilter' => [
+                    'field' => ['fieldPath' => $filter['fieldPath']],
+                    'op' => $filter['op'],
+                    'value' => $filter['value']
+                ]
+            ];
+        } else { // Lebih dari satu filter, asumsikan AND
+            $fieldFilters = [];
+            foreach ($filters as $filter) {
+                $fieldFilters[] = [
+                    'fieldFilter' => [
+                        'field' => ['fieldPath' => $filter['fieldPath']],
+                        'op' => $filter['op'],
+                        'value' => $filter['value']
+                    ]
+                ];
+            }
+            $structuredQuery['where'] = [
+                'compositeFilter' => [
+                    'op' => 'AND',
+                    'filters' => $fieldFilters
+                ]
+            ];
+        }
+    }
+
+    if (!empty($orderBy)) {
+        $queryOrders = [];
+        foreach ($orderBy as $order) {
+            $queryOrders[] = [
+                'field' => ['fieldPath' => $order['field']],
+                'direction' => $order['direction'] ?? 'ASCENDING' // ASCENDING adalah default jika tidak dispesifikkan
+            ];
+        }
+        $structuredQuery['orderBy'] = $queryOrders;
+    }
+
+    $body = ['structuredQuery' => $structuredQuery];
+    $response = Http::post($url, $body);
+
+    if ($response->successful()) {
+        $results = $response->json();
+        $documents = [];
+        // Respons :runQuery adalah array, setiap elemen bisa jadi dokumen atau placeholder kosong jika query tidak match apa2
+        foreach ($results as $result) {
+            if (isset($result['document'])) { // Hanya proses jika elemen tersebut adalah dokumen
+                $documents[] = $result['document'];
+            }
+        }
+        return ['documents' => $documents]; // Format agar konsisten dengan get all (jika ada)
+    }
+
+    // Log error jika perlu
+    // \Log::error("Firestore query failed: " . $response->body());
+    return ['error' => ['message' => 'Firestore query failed', 'status_code' => $response->status(), 'details' => $response->json()]];
+}
+
+public function createDocument(string $attendancesCollection, string $attendanceId, array $attendanceData)
+{
+    // $this->baseUrl sudah benar
+    $url = "{$this->baseUrl}/{$attendancesCollection}?documentId={$attendanceId}";
+    $body = [
+        'fields' => $this->formatData($attendanceData)
+    ];
+    // POST dengan documentId akan membuat dokumen. Error jika sudah ada.
+    // Alternatifnya, bisa pakai PATCH ke path {$collectionName}/{$documentId}
+    // yang akan create jika belum ada, atau overwrite jika ada.
+    // Untuk 'create', POST dengan documentId lebih strict.
+    $response = Http::post($url, $body);
+    return $response->json();
+}
+
+ public function getDocument(string $attendancesCollection, string $attendanceId)
+    {
+        $url = "{$this->baseUrl}/{$attendancesCollection}/{$attendanceId}";
+        $response = Http::get($url);
+
+        if ($response->successful()) {
+            return $response->json();
+        }
+        // Kembalikan juga detail error jika ada
+        return ['error' => ['message' => "Dokumen tidak ditemukan atau gagal diambil dari {$attendancesCollection}/{$attendanceId}", 'status_code' => $response->status(), 'details' => $response->json()]];
+    }
+
+    public function updateDocument(string $attendancesCollection, string $attendanceId, array $attendanceData)
+    {
+        // updateMask memastikan hanya field yang ada di $attendanceData yang diupdate
+        $updateMaskParams = [];
+        foreach (array_keys($attendanceData) as $fieldPath) {
+            $updateMaskParams[] = "updateMask.fieldPaths=" . urlencode($fieldPath);
+        }
+        $queryString = implode("&", $updateMaskParams);
+
+        $url = "{$this->baseUrl}/{$attendancesCollection}/{$attendanceId}?{$queryString}";
+        $body = ['fields' => $this->formatData($attendanceData)]; // formatData sudah Anda miliki
+        $response = Http::patch($url, $body);
+        return $response->json();
+    }
 
 
 }

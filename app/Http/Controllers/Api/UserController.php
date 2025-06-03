@@ -83,6 +83,7 @@ class UserController extends Controller
             'sub' => $userData['id'],
             'email' => $stored['email']['stringValue'],
             'username' => $stored['username']['stringValue'],
+            'name' => $stored['name']['stringValue'],
             'role' => $stored['role']['stringValue'],
             'iat' => time(),
             'exp' => time() + 60 * 60
@@ -96,6 +97,7 @@ class UserController extends Controller
             'user' => [
                 'id' => $userData['id'],
                 'username' => $stored['username']['stringValue'],
+                'name' => $stored['name']['stringValue'],
                 'email' => $stored['email']['stringValue'],
                 'role' => $stored['role']['stringValue'],
             ]
@@ -132,6 +134,7 @@ class UserController extends Controller
         'sub' => $userData['id'],
         'email' => $stored['email']['stringValue'],
         'username' => $stored['username']['stringValue'],
+        'name' => $stored['name']['stringValue'],
         'role' => $role,
         'iat' => time(),
         'exp' => time() + 60 * 60 // 1 jam
@@ -145,6 +148,7 @@ class UserController extends Controller
         'user' => [
             'id' => $userData['id'],
             'username' => $stored['username']['stringValue'],
+            'name' => $stored['name']['stringValue'],
             'email' => $stored['email']['stringValue'],
             'role' => $role,
         ]
@@ -181,6 +185,7 @@ class UserController extends Controller
                 'id' => $decoded->sub,
                 'email' => $decoded->email,
                 'username' => $decoded->username,
+                'name' => $decoded->name,
                 'role' => $decoded->role,
                 'avatarUrl' => $stored['avatarUrl']['stringValue'] ?? null,
             ]

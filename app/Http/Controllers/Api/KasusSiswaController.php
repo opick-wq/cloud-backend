@@ -110,7 +110,7 @@ class KasusSiswaController extends Controller
      */
     public function index(Request $request)
     {
-        $authUser = $this->getAuthUser($request);
+        $authUser = $this->getAuthUser($request); // Ini akan bekerja karena JS mengirim header
         if (!$authUser) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
@@ -119,18 +119,18 @@ class KasusSiswaController extends Controller
         $response = null;
 
         if ($authUser->role === 'guru_bk') {
-            // Anda perlu metode getAllStudentCases di FirebaseService
-            // $response = $this->firebase->getAllStudentCases();
-            $response = $this->firebase->getAllJurnal('student_cases');
+            $response = $this->firebase->getAllJurnal('student_cases'); // Sesuaikan nama metode
         } elseif ($authUser->role === 'siswa') {
-            // Anda perlu metode getStudentCasesByStudentId di FirebaseService
-            // $response = $this->firebase->getStudentCasesByStudentId($authUser->sub);
-             $response = $this->firebase->getJurnal('student_cases', [
-                ['fieldPath' => 'studentId', 'op' => 'EQUAL', 'value' => ['stringValue' => $authUser->sub]]
-            ]);
-        } else {
-            return response()->json(['message' => 'You do not have permission to view student cases.'], 403);
-        }
+        $filters = [
+            ['fieldPath' => 'studentId', 'op' => 'EQUAL', 'value' => ['stringValue' => $authUser->sub]]
+        ];
+    // Anda juga bisa menambahkan order by jika perlu:
+    // $orderBy = [['field' => 'caseDate', 'direction' => 'DESCENDING']];
+    // $response = $this->firebase->queryCollection('student_cases', $filters, $orderBy);
+        $response = $this->firebase->queryCollection('student_cases', $filters);
+            } else {
+                return response()->json(['message' => 'You do not have permission to view student cases.'], 403);
+            }
 
         if (isset($response['documents'])) {
             foreach ($response['documents'] as $doc) {
@@ -139,32 +139,38 @@ class KasusSiswaController extends Controller
                     'id' => basename($doc['name']),
                     'studentId' => $fields['studentId']['stringValue'] ?? null,
                     'studentName' => $fields['studentName']['stringValue'] ?? 'N/A',
-                    // 'studentAttendanceNumber' => $fields['studentAttendanceNumber']['stringValue'] ?? null,
                     'guruBkId' => $fields['guruBkId']['stringValue'] ?? null,
                     'guruBkName' => $fields['guruBkName']['stringValue'] ?? 'N/A',
                     'topic' => $fields['topic']['stringValue'] ?? '',
                     'followUp' => $fields['followUp']['stringValue'] ?? '',
-                    'caseDate' => $fields['caseDate']['stringValue'] ?? null, // Pastikan ini adalah string tanggal yang valid
+                    // KOREKSI DI SINI: Gunakan timestampValue untuk caseDate
+                    'caseDate' => $fields['caseDate']['timestampValue'] ?? ($fields['caseDate']['stringValue'] ?? null),
                     'notes' => $fields['notes']['stringValue'] ?? null,
                     'createdAt' => $fields['createdAt']['timestampValue'] ?? ($fields['createdAt']['stringValue'] ?? null),
                     'updatedAt' => $fields['updatedAt']['timestampValue'] ?? ($fields['updatedAt']['stringValue'] ?? null),
                 ];
             }
-        } elseif (isset($response['error'])) {
-            return response()->json(['message' => 'Failed to fetch student cases', 'error_detail' => $response['error']['message'] ?? 'Unknown error'], 500);
-        }
 
-        // Urutkan berdasarkan tanggal kasus, terbaru dulu
-        if (!empty($casesData)) {
-            usort($casesData, function ($a, $b) {
-                $timeA = $a['caseDate'] ? strtotime($a['caseDate']) : 0;
-                $timeB = $b['caseDate'] ? strtotime($b['caseDate']) : 0;
-                if ($timeA == $timeB) { // Jika tanggal sama, urutkan berdasarkan createdAt
-                    $timeA = $a['createdAt'] ? strtotime($a['createdAt']) : 0;
-                    $timeB = $b['createdAt'] ? strtotime($b['createdAt']) : 0;
-                }
-                return $timeB - $timeA; // Sort descending
-            });
+            // Sorting berdasarkan caseDate
+            if (!empty($casesData)) {
+                usort($casesData, function ($a, $b) {
+                    // Pastikan caseDate ada dan valid sebelum di-parse strtotime
+                    // strtotime akan mengembalikan false jika string tidak valid, yang akan dikonversi ke 0
+                    $timeA = isset($a['caseDate']) && $a['caseDate'] ? strtotime($a['caseDate']) : 0;
+                    $timeB = isset($b['caseDate']) && $b['caseDate'] ? strtotime($b['caseDate']) : 0;
+
+                    if ($timeA == $timeB) {
+                        // Jika tanggal kasus sama, urutkan berdasarkan createdAt
+                        $createdAtA = isset($a['createdAt']) && $a['createdAt'] ? strtotime($a['createdAt']) : 0;
+                        $createdAtB = isset($b['createdAt']) && $b['createdAt'] ? strtotime($b['createdAt']) : 0;
+                        return $createdAtB - $createdAtA; // Terbaru dulu
+                    }
+                    return $timeB - $timeA; // Urutkan caseDate terbaru dulu
+                });
+            }
+        } elseif (isset($response['error'])) {
+            // Log error jika perlu: \Log::error('Firebase Error: ' . json_encode($response['error']));
+            return response()->json(['message' => 'Failed to fetch student cases', 'error_detail' => $response['error']['message'] ?? 'Unknown error'], 500);
         }
 
         return response()->json($casesData);
@@ -206,7 +212,7 @@ class KasusSiswaController extends Controller
             'guruBkName' => $fields['guruBkName']['stringValue'] ?? 'N/A',
             'topic' => $fields['topic']['stringValue'] ?? '',
             'followUp' => $fields['followUp']['stringValue'] ?? '',
-            'caseDate' => $fields['caseDate']['stringValue'] ?? null,
+            'caseDate' => $fields['caseDate']['timestampValue'] ?? ($fields['caseDate']['stringValue'] ?? null),
             'notes' => $fields['notes']['stringValue'] ?? null,
             'createdAt' => $fields['createdAt']['timestampValue'] ?? ($fields['createdAt']['stringValue'] ?? null),
             'updatedAt' => $fields['updatedAt']['timestampValue'] ?? ($fields['updatedAt']['stringValue'] ?? null),
@@ -217,7 +223,6 @@ class KasusSiswaController extends Controller
         } elseif ($authUser->role !== 'guru_bk' && $authUser->role !== 'siswa') {
              return response()->json(['message' => 'You do not have permission to view student cases.'], 403);
         }
-
 
         return response()->json($caseData);
     }
@@ -248,8 +253,8 @@ class KasusSiswaController extends Controller
         $validator = Validator::make($request->all(), [
             // student_user_id tidak diupdate, karena kasus tetap milik siswa yang sama
             'topic' => 'sometimes|required|string|max:255',
-            'follow_up' => 'sometimes|required|string|max:1000',
-            'case_date' => 'sometimes|required|date_format:Y-m-d',
+            'followUp' => 'sometimes|required|string|max:1000',
+            'caseDate' => 'sometimes|required|date_format:Y-m-d',
             'notes' => 'nullable|string|max:1000',
             // 'student_name' => 'sometimes|nullable|string|max:255', // Jika diizinkan update nama siswa dari sini
             // 'student_attendance_number' => 'sometimes|nullable|string|max:50'
@@ -357,4 +362,17 @@ class KasusSiswaController extends Controller
     //     // }
     //     return null;
     // }
+
+
+     public function showSiswaRiwayatKasus()
+    {
+        // Jika Anda menggunakan session auth Laravel untuk melindungi halaman shell ini,
+        // Anda bisa pass $authUser jika ada elemen UI yang membutuhkannya.
+        // $authUser = Auth::user();
+        // return view('kasus_siswa.index_siswa', ['authUser' => $authUser]);
+
+        // Untuk konsistensi dengan pendekatan API-first, view hanya sebagai shell.
+        // JavaScript di view akan menangani cek token dari localStorage untuk API calls.
+        return view('kasus_siswa.index_siswa');
+    }
 }

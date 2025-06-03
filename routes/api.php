@@ -5,11 +5,12 @@ use App\Http\Controllers\Api\SiswaController;
 use App\Http\Controllers\Api\DetailSiswaController;
 use App\Http\Controllers\Api\AspirationController;
 use App\Http\Controllers\Api\KasusSiswaController;
+use App\Http\Controllers\Api\AbsensiController;
 
 
 //admin routes
 Route::post('/admin/register', [UserController::class, 'registerAdmin']);
-Route::post('/admin/login', [UserController::class, 'adminLogin']);
+Route::post('/admin/login', [UserController::class, 'login']);
 
 //aspirasi buat murid post
 Route::post('/aspirations', [AspirationController::class, 'store']);
@@ -73,9 +74,22 @@ Route::prefix('detail-siswa')->group(function () {
 
 
 
- //jurnal student halaman guru_bk dan siswa
+ //jurnal student halaman guru_bk
 Route::post('/student-cases', [KasusSiswaController::class, 'store']);
-Route::get('/student-cases', [KasusSiswaController::class, 'index']);
 Route::get('/student-cases/{id}', [KasusSiswaController::class, 'show']);
-Route::put('/student-cases/{id}', [KasusSiswaController::class, 'update']); // Atau PATCH
+Route::put('/student-cases/{id}', [KasusSiswaController::class, 'update']);
 Route::delete('/student-cases/{id}', [KasusSiswaController::class, 'destroy']);
+
+//ini bisa digunakan buat guru dan halaman jurnal siswa karena deteksi berdasarkan rolenya
+Route::get('/student-cases', [KasusSiswaController::class, 'index']);
+
+//rute untuk absen siswa
+Route::post('/attendance/submit', [AbsensiController::class, 'submitStudentAttendance']);
+Route::get('/attendance/today', [AbsensiController::class, 'getMyTodaysAttendance']);
+
+
+    // Rute lihat absen untuk Guru BK
+Route::get('/attendance/report/daily', [AbsensiController::class, 'getDailyReport']); // Asumsi ada middleware role API
+Route::get('/attendance/report/monthly', [AbsensiController::class, 'getMonthlyReport']);
+Route::put('/absensi/update/{attendanceId}', [AbsensiController::class, 'updateAttendance'])->name('absensi.update'); // Gunakan ID absensi dari Firebase
+Route::post('/absensi/manual-add', [AbsensiController::class, 'manualAddAttendance'])->name('absensi.manual_add');
