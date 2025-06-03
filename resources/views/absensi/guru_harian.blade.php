@@ -326,6 +326,22 @@ $(document).ready(function() {
             return null;
         }
     }
+
+    function formatInputTimeToHI(timeString, dateString) { // timeString "HH:mm", dateString "YYYY-MM-DD"
+    if (!timeString) return null; // Jika waktu kosong, kirim null
+
+    // Cukup kembalikan timeString jika formatnya sudah HH:MM
+    // Jika Anda ingin memastikan formatnya HH:MM, Anda bisa tambahkan validasi
+    // Misalnya, jika user input "8:0" menjadi "08:00"
+    const parts = timeString.split(':');
+    if (parts.length === 2) {
+        const hours = String(parts[0]).padStart(2, '0');
+        const minutes = String(parts[1]).padStart(2, '0');
+        return `${hours}:${minutes}`;
+    }
+    return null; // Atau kembalikan timeString apa adanya jika tidak valid
+}
+
     // Helper untuk mendapatkan offset timezone (misal +07:00)
     function getOffset(timeZone) {
         const date = new Date();
@@ -545,8 +561,8 @@ $(document).ready(function() {
     btnSubmitManualAdd.click(function() {
         const studentId = manualStudentIdInput.val();
         const selectedDate = manualDateInput.val();
-        const clockInISO = formatInputTimeToISO(manualClockInTimeInput.val(), selectedDate);
-        const clockOutISO = formatInputTimeToISO(manualClockOutTimeInput.val(), selectedDate);
+        const clockInISO = formatInputTimeToHI(manualClockInTimeInput.val(), selectedDate);
+        const clockOutISO = formatInputTimeToHI(manualClockOutTimeInput.val(), selectedDate);
 
         const manualData = {
             student_id: studentId,
