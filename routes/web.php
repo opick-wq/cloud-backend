@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Api\KasusSiswaController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ControllerSiswa;
 use App\Http\Controllers\Api\SiswaController;
 use App\Http\Controllers\AbsensiViewController;
 

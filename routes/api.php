@@ -47,17 +47,17 @@ Route::prefix('siswa')->group(function () {
     //untuk melihat profil siswa berdasarkan id
     Route::get('/{id}', [SiswaController::class, 'show']);
 
-    //update profil siswa berdasarkan id
+    //update untuk admin profil siswa berdasarkan id
     Route::put('/{id}', [SiswaController::class, 'update']);
 
     //delete profil siswa berdasarkan id
     Route::delete('/{id}', [SiswaController::class, 'destroy']);
 });
 
-//untuk siswa melihat profil siswa 
+//untuk halman tampilan siswa melihat profil siswa 
 Route::get('/profile', [SiswaController::class, 'showProfile']);
 //untuk update siswa
-Route::put('/profile', [SiswaController::class, 'showProfile']);
+Route::put('/profile', [SiswaController::class, 'updateProfile']);
 
 Route::get('/siswa/{id}/edit', [SiswaController::class, 'edit'])->name('api.siswa.edit');
 Route::prefix('detail-siswa')->group(function () {
