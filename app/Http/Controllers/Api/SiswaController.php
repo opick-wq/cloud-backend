@@ -686,6 +686,7 @@ private function formatChatData($doc)
         return [
             'id' => basename($doc['name']),
             'name' => $fields['name']['stringValue'] ?? '',
+            'nomor_telp_hp' => $fields['nomor_telp_hp']['stringValue'] ?? '',
             'avatarUrl' => $fields['avatarUrl']['stringValue'] ?? '',
     ];
     }

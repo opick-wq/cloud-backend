@@ -46,135 +46,178 @@ class AbsensiController extends Controller
      */
     public function submitStudentAttendance(Request $request)
     {
-        $authUser = $this->getAuthUser($request);
-        if (!$authUser || $authUser->role !== 'siswa') { // Pastikan role 'siswa' sesuai dengan JWT Anda
-            return response()->json(['message' => 'Hanya siswa yang dapat melakukan absensi.'], 403);
+    $authUser = $this->getAuthUser($request);
+    if (!$authUser || $authUser->role !== 'siswa') { // Pastikan role 'siswa' sesuai dengan JWT Anda
+        return response()->json(['message' => 'Hanya siswa yang dapat melakukan absensi.'], 403);
+    }
+
+    // MODIFIKASI 1: Tambahkan 'IZIN' pada validasi 'action' dan 'notes'
+    $validator = Validator::make($request->all(), [
+        'action' => 'required|string|in:DATANG,SAKIT,IZIN', // Tambahkan IZIN di sini
+        'latitude' => 'nullable|required_if:action,DATANG|numeric',
+        'longitude' => 'nullable|required_if:action,DATANG|numeric',
+        'address' => 'nullable|string|max:255',
+        'work_code' => 'nullable|string|max:100',
+        'notes' => 'nullable|required_if:action,SAKIT,IZIN|string|max:500', // Wajibkan notes untuk Sakit dan Izin
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    $data = $validator->validated();
+    $now = Carbon::now(env('APP_TIMEZONE', 'UTC'))->toIso8601String(); // Timestamp saat ini UTC
+    
+    $appTimezone = env('APP_TIMEZONE', 'UTC');
+    $currentDateForLogic = Carbon::now($appTimezone); 
+
+    $todayStringForStorage = $currentDateForLogic->format('Y-m-d');
+
+    $startOfDayTimestampForQuery = $currentDateForLogic->copy()->startOfDay()->setTimezone('UTC')->toIso8601String();
+    $startOfNextDayTimestampForQuery = $currentDateForLogic->copy()->addDay()->startOfDay()->setTimezone('UTC')->toIso8601String();
+
+    $filters = [
+        ['fieldPath' => 'studentId', 'op' => 'EQUAL', 'value' => ['stringValue' => $authUser->sub]],
+        ['fieldPath' => 'date', 'op' => 'GREATER_THAN_OR_EQUAL', 'value' => ['timestampValue' => $startOfDayTimestampForQuery]],
+        ['fieldPath' => 'date', 'op' => 'LESS_THAN', 'value' => ['timestampValue' => $startOfNextDayTimestampForQuery]],
+    ];
+    $existingAttendanceResponse = $this->firebase->queryCollection($this->attendanceCollection, $filters, [], 1);
+    $existingAttendanceDoc = null;
+    $existingAttendanceId = null;
+
+    if (isset($existingAttendanceResponse['documents']) && !empty($existingAttendanceResponse['documents'])) {
+        $existingAttendanceDoc = $existingAttendanceResponse['documents'][0];
+        $existingAttendanceId = basename($existingAttendanceDoc['name']);
+    }
+
+    // Mengambil nama siswa. Sesuaikan path field 'name' jika berbeda di koleksi users Anda
+    $studentName = $authUser->name ?? 'Nama Siswa Tidak Diketahui'; // Fallback jika tidak ada di JWT
+    if (isset($authUser->sub) && ($authUser->name ?? null) === null) { // Coba fetch jika tidak ada di JWT
+        try {
+            $userDoc = $this->firebase->getDocument($this->usersCollection, $authUser->sub);
+            if (isset($userDoc['fields']['name']['stringValue'])) {
+                $studentName = $userDoc['fields']['name']['stringValue'];
+            } elseif (isset($userDoc['fields']['username']['stringValue'])) { // Fallback ke username jika nama tidak ada
+                $studentName = $userDoc['fields']['username']['stringValue'];
+            }
+        } catch (\Exception $e) {
+            // Biarkan $studentName sebagai fallback
+        }
+    }
+
+
+    if ($data['action'] === 'DATANG') {
+        if ($existingAttendanceDoc) {
+            $currentStatus = $existingAttendanceDoc['fields']['status']['stringValue'] ?? null;
+            if ($currentStatus === 'HADIR') {
+                return response()->json(['message' => 'Anda sudah melakukan absensi datang hari ini.'], 409);
+            }
+            return response()->json(['message' => 'Status absensi Anda hari ini sudah tercatat ('.$currentStatus.'). Tidak dapat melakukan Datang lagi.'], 409);
         }
 
-        $validator = Validator::make($request->all(), [
-            'action' => 'required|string|in:DATANG,SAKIT',
-            'latitude' => 'nullable|required_if:action,DATANG|numeric',
-            'longitude' => 'nullable|required_if:action,DATANG|numeric',
-            'address' => 'nullable|string|max:255',
-            'work_code' => 'nullable|string|max:100',
-            'notes' => 'nullable|required_if:action,SAKIT|string|max:500',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        $data = $validator->validated();
-        $now = Carbon::now(env('APP_TIMEZONE', 'UTC'))->toIso8601String(); // Timestamp saat ini UTC
-        
-        $appTimezone = env('APP_TIMEZONE', 'UTC');
-        $currentDateForLogic = Carbon::now($appTimezone); 
-
-        $todayStringForStorage = $currentDateForLogic->format('Y-m-d');
-
-        $startOfDayTimestampForQuery = $currentDateForLogic->copy()->startOfDay()->setTimezone('UTC')->toIso8601String();
-        $startOfNextDayTimestampForQuery = $currentDateForLogic->copy()->addDay()->startOfDay()->setTimezone('UTC')->toIso8601String();
-
-        $filters = [
-            ['fieldPath' => 'studentId', 'op' => 'EQUAL', 'value' => ['stringValue' => $authUser->sub]],
-            ['fieldPath' => 'date', 'op' => 'GREATER_THAN_OR_EQUAL', 'value' => ['timestampValue' => $startOfDayTimestampForQuery]],
-            ['fieldPath' => 'date', 'op' => 'LESS_THAN', 'value' => ['timestampValue' => $startOfNextDayTimestampForQuery]],
+        $attendanceId = (string) Str::uuid();
+        $attendanceData = [
+            'studentId' => $authUser->sub,
+            'studentName' => $studentName,
+            'date' => $todayStringForStorage, 
+            'status' => 'HADIR',
+            'clockInTime' => $now, 
+            'clockInLatitude' => (float) $data['latitude'],
+            'clockInLongitude' => (float) $data['longitude'],
+            'clockInAddress' => $data['address'] ?? null,
+            'workCode' => $data['work_code'] ?? null,
+            'recordedBy' => 'student',
+            'createdAt' => $now,
+            'updatedAt' => $now,
+            'year_month' => $currentDateForLogic->format('Y-m'), 
         ];
-        $existingAttendanceResponse = $this->firebase->queryCollection($this->attendanceCollection, $filters, [], 1);
-        $existingAttendanceDoc = null;
-        $existingAttendanceId = null;
+        $this->firebase->createDocument($this->attendanceCollection, $attendanceId, $attendanceData);
+        $attendanceData['id'] = $attendanceId; // Tambahkan ID ke data yang dikembalikan
+        return response()->json(['message' => 'Absensi datang berhasil dicatat.', 'data' => $this->formatAttendanceDataFromPreparedData($attendanceData, true)], 201);
 
-        if (isset($existingAttendanceResponse['documents']) && !empty($existingAttendanceResponse['documents'])) {
-            $existingAttendanceDoc = $existingAttendanceResponse['documents'][0];
-            $existingAttendanceId = basename($existingAttendanceDoc['name']);
-        }
-
-        // Mengambil nama siswa. Sesuaikan path field 'name' jika berbeda di koleksi users Anda
-        $studentName = $authUser->name ?? 'Nama Siswa Tidak Diketahui'; // Fallback jika tidak ada di JWT
-        if (isset($authUser->sub) && ($authUser->name ?? null) === null) { // Coba fetch jika tidak ada di JWT
-            try {
-                $userDoc = $this->firebase->getDocument($this->usersCollection, $authUser->sub);
-                if (isset($userDoc['fields']['name']['stringValue'])) {
-                    $studentName = $userDoc['fields']['name']['stringValue'];
-                } elseif (isset($userDoc['fields']['username']['stringValue'])) { // Fallback ke username jika nama tidak ada
-                     $studentName = $userDoc['fields']['username']['stringValue'];
-                }
-            } catch (\Exception $e) {
-                // Biarkan $studentName sebagai fallback
+    } elseif ($data['action'] === 'SAKIT') {
+        if ($existingAttendanceDoc) { 
+            $currentStatus = $existingAttendanceDoc['fields']['status']['stringValue'] ?? null;
+            if ($currentStatus === 'SAKIT') {
+                return response()->json(['message' => 'Anda sudah tercatat sakit hari ini.'], 409);
             }
-        }
-
-
-        if ($data['action'] === 'DATANG') {
-            if ($existingAttendanceDoc) {
-                $currentStatus = $existingAttendanceDoc['fields']['status']['stringValue'] ?? null;
-                if ($currentStatus === 'HADIR') {
-                    return response()->json(['message' => 'Anda sudah melakukan absensi datang hari ini.'], 409);
-                }
-                return response()->json(['message' => 'Status absensi Anda hari ini sudah tercatat ('.$currentStatus.'). Tidak dapat melakukan Datang lagi.'], 409);
+            if ($currentStatus === 'HADIR') { 
+                $updateData = [
+                    'status' => 'SAKIT',
+                    'notes' => $data['notes'],
+                    'clockOutTime' => $now, 
+                    'updatedAt' => $now,
+                    'recordedBy' => 'student_update_sick',
+                ];
+                $this->firebase->updateDocument($this->attendanceCollection, $existingAttendanceId, $updateData);
+                $updatedDocFromFirebase = $this->firebase->getDocument($this->attendanceCollection, $existingAttendanceId); 
+                return response()->json(['message' => 'Status absensi Anda telah diperbarui menjadi Sakit.', 'data' => $this->formatAttendanceData($updatedDocFromFirebase, true)], 200);
             }
+            return response()->json(['message' => 'Status absensi Anda saat ini ('.$currentStatus.') tidak dapat diubah menjadi Sakit melalui aksi ini.'], 409);
 
+        } else { 
             $attendanceId = (string) Str::uuid();
             $attendanceData = [
                 'studentId' => $authUser->sub,
                 'studentName' => $studentName,
                 'date' => $todayStringForStorage, 
-                'status' => 'HADIR',
-                'clockInTime' => $now, 
-                'clockInLatitude' => (float) $data['latitude'],
-                'clockInLongitude' => (float) $data['longitude'],
-                'clockInAddress' => $data['address'] ?? null,
-                'workCode' => $data['work_code'] ?? null,
+                'status' => 'SAKIT',
+                'notes' => $data['notes'],
+                'clockInTime' => null, 
                 'recordedBy' => 'student',
                 'createdAt' => $now,
                 'updatedAt' => $now,
                 'year_month' => $currentDateForLogic->format('Y-m'), 
             ];
             $this->firebase->createDocument($this->attendanceCollection, $attendanceId, $attendanceData);
-            $attendanceData['id'] = $attendanceId; // Tambahkan ID ke data yang dikembalikan
-            return response()->json(['message' => 'Absensi datang berhasil dicatat.', 'data' => $this->formatAttendanceDataFromPreparedData($attendanceData, true)], 201);
-
-        } elseif ($data['action'] === 'SAKIT') {
-            if ($existingAttendanceDoc) { 
-                $currentStatus = $existingAttendanceDoc['fields']['status']['stringValue'] ?? null;
-                if ($currentStatus === 'SAKIT') {
-                    return response()->json(['message' => 'Anda sudah tercatat sakit hari ini.'], 409);
-                }
-                if ($currentStatus === 'HADIR') { 
-                    $updateData = [
-                        'status' => 'SAKIT',
-                        'notes' => $data['notes'],
-                        'clockOutTime' => $now, 
-                        'updatedAt' => $now,
-                        'recordedBy' => 'student_update_sick',
-                    ];
-                    $this->firebase->updateDocument($this->attendanceCollection, $existingAttendanceId, $updateData);
-                    $updatedDocFromFirebase = $this->firebase->getDocument($this->attendanceCollection, $existingAttendanceId); 
-                    return response()->json(['message' => 'Status absensi Anda telah diperbarui menjadi Sakit.', 'data' => $this->formatAttendanceData($updatedDocFromFirebase, true)], 200);
-                }
-                return response()->json(['message' => 'Status absensi Anda saat ini ('.$currentStatus.') tidak dapat diubah menjadi Sakit melalui aksi ini.'], 409);
-
-            } else { 
-                $attendanceId = (string) Str::uuid();
-                $attendanceData = [
-                    'studentId' => $authUser->sub,
-                    'studentName' => $studentName,
-                    'date' => $todayStringForStorage, 
-                    'status' => 'SAKIT',
-                    'notes' => $data['notes'],
-                    'clockInTime' => null, 
-                    'recordedBy' => 'student',
-                    'createdAt' => $now,
-                    'updatedAt' => $now,
-                    'year_month' => $currentDateForLogic->format('Y-m'), 
-                ];
-                $this->firebase->createDocument($this->attendanceCollection, $attendanceId, $attendanceData);
-                $attendanceData['id'] = $attendanceId; // Tambahkan ID
-                return response()->json(['message' => 'Keterangan sakit berhasil dicatat.', 'data' => $this->formatAttendanceDataFromPreparedData($attendanceData, false)], 201);
-            }
+            $attendanceData['id'] = $attendanceId; // Tambahkan ID
+            return response()->json(['message' => 'Keterangan sakit berhasil dicatat.', 'data' => $this->formatAttendanceDataFromPreparedData($attendanceData, false)], 201);
         }
-        return response()->json(['message' => 'Aksi tidak valid.'], 400); // Seharusnya tidak sampai sini karena validasi 'in:DATANG,SAKIT'
+
+    // BARU: Blok logika untuk menghandle aksi 'IZIN'
+    } elseif ($data['action'] === 'IZIN') {
+        if ($existingAttendanceDoc) { 
+            $currentStatus = $existingAttendanceDoc['fields']['status']['stringValue'] ?? null;
+            if ($currentStatus === 'IZIN') {
+                return response()->json(['message' => 'Anda sudah tercatat izin hari ini.'], 409);
+            }
+            if ($currentStatus === 'HADIR') { 
+                $updateData = [
+                    'status' => 'IZIN',
+                    'notes' => $data['notes'],
+                    'clockOutTime' => $now, // Bisa dianggap sebagai waktu pengajuan izin jika sudah clock-in
+                    'updatedAt' => $now,
+                    'recordedBy' => 'student_update_permit', // 'permit' untuk izin
+                ];
+                $this->firebase->updateDocument($this->attendanceCollection, $existingAttendanceId, $updateData);
+                $updatedDocFromFirebase = $this->firebase->getDocument($this->attendanceCollection, $existingAttendanceId); 
+                return response()->json(['message' => 'Status absensi Anda telah diperbarui menjadi Izin.', 'data' => $this->formatAttendanceData($updatedDocFromFirebase, true)], 200);
+            }
+            return response()->json(['message' => 'Status absensi Anda saat ini ('.$currentStatus.') tidak dapat diubah menjadi Izin melalui aksi ini.'], 409);
+
+        } else { // Jika belum ada absensi sama sekali untuk hari ini
+            $attendanceId = (string) Str::uuid();
+            $attendanceData = [
+                'studentId' => $authUser->sub,
+                'studentName' => $studentName,
+                'date' => $todayStringForStorage, 
+                'status' => 'IZIN',
+                'notes' => $data['notes'],
+                'clockInTime' => null, // Tidak ada clock-in karena izin
+                'recordedBy' => 'student',
+                'createdAt' => $now,
+                'updatedAt' => $now,
+                'year_month' => $currentDateForLogic->format('Y-m'), 
+            ];
+            $this->firebase->createDocument($this->attendanceCollection, $attendanceId, $attendanceData);
+            $attendanceData['id'] = $attendanceId; // Tambahkan ID
+            return response()->json(['message' => 'Keterangan izin berhasil dicatat.', 'data' => $this->formatAttendanceDataFromPreparedData($attendanceData, false)], 201);
+        }
     }
+
+    return response()->json(['message' => 'Aksi tidak valid.'], 400); // Seharusnya tidak sampai sini karena validasi 'in'
+}
+
 
     /**
      * Mendapatkan info absensi mahasiswa untuk hari ini.
